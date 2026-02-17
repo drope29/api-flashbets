@@ -34,7 +34,7 @@ class Simulator {
     this.io = null;
   }
 
-  start(io) {
+  start(io, marketService) {
     this.io = io;
     console.log('Simulator started...');
 
@@ -43,6 +43,9 @@ class Simulator {
       const event = generateEvent();
       console.log('Simulating event:', event);
       this.io.emit('sport_event', event);
+      if (marketService) {
+          marketService.processEvent(event);
+      }
     }, 5000);
   }
 

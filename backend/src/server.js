@@ -35,9 +35,13 @@ io.on('connection', (socket) => {
   });
 });
 
-// Import and start Simulator
+// Import services
 const simulator = require('./services/simulator');
-simulator.start(io);
+const marketService = require('./services/marketService');
+
+// Start services
+marketService.setIo(io);
+simulator.start(io, marketService);
 
 server.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
