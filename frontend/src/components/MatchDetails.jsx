@@ -51,7 +51,7 @@ const getEventIcon = (type) => {
     }
 };
 
-const MatchDetails = ({ matchInfo, flashTimer, flashMarkets, events, onBack, onBet }) => {
+const MatchDetails = ({ matchInfo, flashTimer, events, onBack, onBet }) => {
     const [isFinished, setIsFinished] = useState(false);
 
     // Lifecycle Monitor
@@ -104,60 +104,65 @@ const MatchDetails = ({ matchInfo, flashTimer, flashMarkets, events, onBack, onB
                 </div>
              </div>
 
-             {/* Current Interval Card */}
-             <div className="bg-gray-900 border border-gray-800 rounded-2xl p-1 relative overflow-hidden shadow-2xl">
-                <div className="p-6">
-                    {/* Header */}
-                    <div className="flex justify-between items-center mb-6">
-                        <h3 className="font-bold text-white flex items-center gap-2 text-xl">
-                            <Clock className="w-6 h-6 text-green-400" />
-                            {flashMarkets.current?.title || 'Waiting for market...'}
-                        </h3>
-                        <div className="text-sm font-mono font-bold bg-gray-800 px-3 py-1 rounded text-gray-300 border border-gray-700">
-                            {flashMarkets.current?.interval || '--:-- - --:--'}
-                        </div>
-                    </div>
+             {/* Markets Grid */}
+             {matchInfo.markets && matchInfo.markets.length > 0 ? (
+                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                     {matchInfo.markets.map(market => (
+                         <div key={market.id} className="bg-gray-900 border border-gray-800 rounded-2xl p-4 relative overflow-hidden shadow-xl">
+                            {/* Header */}
+                            <div className="flex justify-between items-center mb-4">
+                                <h3 className="font-bold text-white flex items-center gap-2 text-sm">
+                                    <Clock className="w-4 h-4 text-green-400" />
+                                    {market.title}
+                                </h3>
+                                <div className="text-xs font-mono font-bold bg-gray-800 px-2 py-1 rounded text-gray-300 border border-gray-700">
+                                    {market.interval}
+                                </div>
+                            </div>
 
-                    {/* Progress Bar */}
-                    <div className="mb-8">
-                        <div className="flex justify-between text-xs text-gray-500 mb-2 font-mono uppercase tracking-wider">
-                            <span>Window Open</span>
-                            <span>Closing Soon</span>
-                        </div>
-                        <div className="h-4 w-full bg-gray-800 rounded-full overflow-hidden border border-gray-700">
-                            <div
-                                className="h-full bg-gradient-to-r from-green-500 to-emerald-400 transition-all duration-1000 ease-linear shadow-[0_0_10px_rgba(34,197,94,0.5)]"
-                                style={{ width: `${flashMarkets.current?.progress || 0}%` }}
-                            ></div>
-                        </div>
-                    </div>
+                            {/* Progress Bar */}
+                            <div className="mb-6">
+                                <div className="h-2 w-full bg-gray-800 rounded-full overflow-hidden border border-gray-700">
+                                    <div
+                                        className="h-full bg-gradient-to-r from-green-500 to-emerald-400 transition-all duration-1000 ease-linear shadow-[0_0_10px_rgba(34,197,94,0.5)]"
+                                        style={{ width: `${market.progress || 0}%` }}
+                                    ></div>
+                                </div>
+                            </div>
 
-                    {/* Action Buttons */}
-                    <div className="grid grid-cols-2 gap-4">
-                        <FlashOddsButton
-                            type="YES"
-                            odds={flashMarkets.current?.odds.yes || 1.0}
-                            onClick={() => onBet(flashMarkets.current.id, 'YES', flashMarkets.current.odds.yes)}
-                            disabled={isFinished || !flashMarkets.current || flashMarkets.current.status !== 'OPEN'}
-                        />
-                        <FlashOddsButton
-                            type="NO"
-                            odds={flashMarkets.current?.odds.no || 1.0}
-                            onClick={() => onBet(flashMarkets.current.id, 'NO', flashMarkets.current.odds.no)}
-                            disabled={isFinished || !flashMarkets.current || flashMarkets.current.status !== 'OPEN'}
-                        />
-                    </div>
-                </div>
+                            {/* Action Buttons */}
+                            <div className="grid grid-cols-2 gap-2">
+                                <FlashOddsButton
+                                    type="YES"
+                                    odds={market.odds?.yes || 1.0}
+                                    onClick={() => onBet(market.id, 'YES', market.odds.yes)}
+                                    disabled={isFinished || market.status !== 'OPEN'}
+                                />
+                                <FlashOddsButton
+                                    type="NO"
+                                    odds={market.odds?.no || 1.0}
+                                    onClick={() => onBet(market.id, 'NO', market.odds.no)}
+                                    disabled={isFinished || market.status !== 'OPEN'}
+                                />
+                            </div>
 
-                {isFinished && (
-                    <div className="absolute inset-0 bg-black/80 flex items-center justify-center z-20">
-                        <div className="text-center">
-                            <Lock className="w-12 h-12 text-gray-500 mx-auto mb-2" />
-                            <h3 className="text-xl font-bold text-gray-300">GAME OVER</h3>
-                        </div>
-                    </div>
-                )}
-             </div>
+                            {isFinished && (
+                                <div className="absolute inset-0 bg-black/80 flex items-center justify-center z-20">
+                                    <Lock className="w-8 h-8 text-gray-500" />
+                                </div>
+                            )}
+                         </div>
+                     ))}
+                 </div>
+             ) : (
+                 // Waiting State
+                 <div className="bg-gray-900 border border-gray-800 rounded-2xl p-1 relative overflow-hidden shadow-2xl">
+                     <div className="p-12 text-center text-gray-500">
+                        <Clock className="w-12 h-12 mx-auto mb-4 opacity-20" />
+                        <h3 className="text-xl font-bold">Waiting for market...</h3>
+                     </div>
+                 </div>
+             )}
 
              {/* Feed */}
              <div className="bg-gray-800 rounded-xl shadow-lg border border-gray-700 flex flex-col h-[300px] overflow-hidden">

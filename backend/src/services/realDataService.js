@@ -1,5 +1,6 @@
 require('dotenv').config();
 const axios = require('axios');
+const FlashMarketService = require('./flashMarketService');
 
 const DEBUG_MODE = true;
 
@@ -101,6 +102,8 @@ class RealDataService {
               serverTimestamp: now
           };
 
+          debugMatch.markets = FlashMarketService.generateMarkets(debugMatch);
+
           // Check if exists to update or push
           const idx = this.cachedMatches.findIndex(m => m.fixture.id === 999999);
           if (idx >= 0) this.cachedMatches[idx] = debugMatch;
@@ -135,6 +138,8 @@ class RealDataService {
               goals: { home: 2, away: 2 },
               serverTimestamp: now
             };
+
+            debugMatch.markets = FlashMarketService.generateMarkets(debugMatch);
 
             if (this.io) {
                 this.io.to(`game_${fixtureId}`).emit('match_update', debugMatch);

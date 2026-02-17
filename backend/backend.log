@@ -1,0 +1,71 @@
+
+> backend@1.0.0 start
+> node src/server.js
+
+[API] Fetching matches (Strict Mode - 5 Day Window)...
+[API ERROR] No FOOTBALL_DATA_TOKEN found. Cannot fetch real data.
+[API] Updated cache with 1 matches.
+Server running on port 3001
+[API] Fetching matches (Strict Mode - 5 Day Window)...
+[API ERROR] No FOOTBALL_DATA_TOKEN found. Cannot fetch real data.
+[API] Updated cache with 1 matches.
+New client connected: h3Dx7KBifcOwWbxqAAAC
+Client h3Dx7KBifcOwWbxqAAAC joined game 999999
+[MONITOR] Starting active monitoring for DEBUG fixture 999999
+[FLASH] Starting Flash Markets for Game 999999
+Client h3Dx7KBifcOwWbxqAAAC joined game 999999
+Client disconnected: h3Dx7KBifcOwWbxqAAAC
+[FLASH] Syncing Timer: Internal 1321s -> API 2400s
+[FLASH] Syncing Timer: Internal 2401s -> API 2460s
+[FLASH] Syncing Timer: Internal 2461s -> API 2520s
+[FLASH] Syncing Timer: Internal 2521s -> API 2580s
+[FLASH] Syncing Timer: Internal 2581s -> API 2640s
+[FLASH] Syncing Timer: Internal 2641s -> API 2700s
+[FLASH] Syncing Timer: Internal 2701s -> API 2760s
+[FLASH] Syncing Timer: Internal 2761s -> API 2820s
+[FLASH] Syncing Timer: Internal 2821s -> API 2880s
+[FLASH] Syncing Timer: Internal 2881s -> API 2940s
+[FLASH] Syncing Timer: Internal 2941s -> API 3000s
+[FLASH] Syncing Timer: Internal 3001s -> API 3060s
+[FLASH] Syncing Timer: Internal 3061s -> API 3120s
+[API] Fetching matches (Strict Mode - 5 Day Window)...
+[API ERROR] No FOOTBALL_DATA_TOKEN found. Cannot fetch real data.
+[API] Updated cache with 1 matches.
+[FLASH] Syncing Timer: Internal 3121s -> API 3180s
+[FLASH] Syncing Timer: Internal 3181s -> API 3240s
+[FLASH] Syncing Timer: Internal 3241s -> API 3300s
+[FLASH] Syncing Timer: Internal 3301s -> API 3360s
+[FLASH] Syncing Timer: Internal 3361s -> API 3420s
+[FLASH] Syncing Timer: Internal 3421s -> API 3480s
+[FLASH] Syncing Timer: Internal 3481s -> API 3540s
+[FLASH] Syncing Timer: Internal 3541s -> API 3600s
+[FLASH] Syncing Timer: Internal 3601s -> API 3660s
+[FLASH] Syncing Timer: Internal 3661s -> API 3720s
+[FLASH] Syncing Timer: Internal 3721s -> API 3780s
+[FLASH] Syncing Timer: Internal 3781s -> API 3840s
+[FLASH] Syncing Timer: Internal 3841s -> API 3900s
+[FLASH] Syncing Timer: Internal 3901s -> API 3960s
+[FLASH] Syncing Timer: Internal 3961s -> API 4020s
+[FLASH] Syncing Timer: Internal 4021s -> API 4080s
+[FLASH] Syncing Timer: Internal 4081s -> API 4140s
+[FLASH] Syncing Timer: Internal 4141s -> API 4200s
+[FLASH] Syncing Timer: Internal 4201s -> API 4260s
+[FLASH] Syncing Timer: Internal 4261s -> API 4320s
+[FLASH] Syncing Timer: Internal 4321s -> API 4380s
+[FLASH] Syncing Timer: Internal 4381s -> API 4440s
+[FLASH] Syncing Timer: Internal 4441s -> API 4500s
+[FLASH] Syncing Timer: Internal 4501s -> API 4560s
+[FLASH] Syncing Timer: Internal 4561s -> API 4620s
+[FLASH] Syncing Timer: Internal 4621s -> API 4680s
+[FLASH] Syncing Timer: Internal 4681s -> API 4740s
+[FLASH] Syncing Timer: Internal 4741s -> API 4800s
+[FLASH] Syncing Timer: Internal 4801s -> API 4860s
+[FLASH] Syncing Timer: Internal 4861s -> API 4920s
+[API] Fetching matches (Strict Mode - 5 Day Window)...
+[API ERROR] No FOOTBALL_DATA_TOKEN found. Cannot fetch real data.
+[API] Updated cache with 1 matches.
+[FLASH] Syncing Timer: Internal 4921s -> API 4980s
+[FLASH] Syncing Timer: Internal 4981s -> API 5040s
+[FLASH] Syncing Timer: Internal 5041s -> API 5100s
+[FLASH] Syncing Timer: Internal 5101s -> API 5160s
+[FLASH] Syncing Timer: Internal 5161s -> API 5220s

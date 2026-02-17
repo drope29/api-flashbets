@@ -209,6 +209,49 @@ class FlashMarketService {
           });
       }
   }
+
+  generateMarkets(match) {
+      const elapsed = match.fixture.status.elapsed || 0;
+      const serverTime = match.serverTimestamp || Date.now();
+      const seconds = (serverTime / 1000) % 60; // Seconds within the current minute
+
+      // 1. Flash (1 Min) - "Gol entre X:00 e X:59"
+      const flashMarket = {
+          id: `flash_${match.fixture.id}_${elapsed}`,
+          title: 'Flash Goal (1 Min)', // Simplified title for UI
+          interval: `${elapsed}:00 - ${elapsed}:59`,
+          progress: (seconds / 60) * 100,
+          status: 'OPEN',
+          odds: { yes: 1.95, no: 1.95 }
+      };
+
+      // 2. Short (5 Min) - "Gol entre X:00 e X+5:00"
+      // Align to 5 min blocks for stability
+      const shortStart = Math.floor(elapsed / 5) * 5;
+      const shortEnd = shortStart + 5;
+      const shortMarket = {
+          id: `short_${match.fixture.id}_${shortStart}`,
+          title: 'Short Goal (5 Min)',
+          interval: `${shortStart}:00 - ${shortEnd}:00`,
+          progress: ((elapsed % 5) * 60 + seconds) / 300 * 100,
+          status: 'OPEN',
+          odds: { yes: 2.50, no: 1.50 }
+      };
+
+      // 3. Long (10 Min) - "Gol nos próximos 10 min"
+      const longStart = Math.floor(elapsed / 10) * 10;
+      const longEnd = longStart + 10;
+      const longMarket = {
+          id: `long_${match.fixture.id}_${longStart}`,
+          title: 'Long Goal (10 Min)',
+          interval: `${longStart}:00 - ${longEnd}:00`,
+          progress: ((elapsed % 10) * 60 + seconds) / 600 * 100,
+          status: 'OPEN',
+          odds: { yes: 3.20, no: 1.30 }
+      };
+
+      return [flashMarket, shortMarket, longMarket];
+  }
 }
 
 module.exports = new FlashMarketService();
