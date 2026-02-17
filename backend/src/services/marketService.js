@@ -177,6 +177,34 @@ class MarketService {
       this.io.emit('odds_update', this.activeMarkets);
     }
   }
+
+  placeBet(betData, socketId) {
+    const { marketId, selection, odd, amount } = betData;
+    const market = this.activeMarkets.find(m => m.id === marketId);
+
+    if (!market) {
+        console.log(`[MONEY] Bet Rejected: Market ${marketId} not found.`);
+        if (this.io) this.io.to(socketId).emit('bet_rejected', { reason: 'Market not found' });
+        return;
+    }
+
+    if (market.status !== 'OPEN') {
+        console.log(`[MONEY] Bet Rejected: Market ${marketId} is ${market.status}.`);
+        if (this.io) this.io.to(socketId).emit('bet_rejected', { reason: `Market is ${market.status}` });
+        return;
+    }
+
+    console.log(`[MONEY] New Bet Accepted! R$ ${amount} on ${selection} @ ${odd}.`);
+    if (this.io) {
+        this.io.to(socketId).emit('bet_accepted', {
+            marketId,
+            selection,
+            odd,
+            amount,
+            timestamp: new Date()
+        });
+    }
+  }
 }
 
 module.exports = new MarketService();

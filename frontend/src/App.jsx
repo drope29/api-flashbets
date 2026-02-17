@@ -1,12 +1,62 @@
 import { useState, useEffect, useRef } from 'react';
 import { io } from 'socket.io-client';
-import { Lock, Timer, Info, Trophy, AlertTriangle, Wallet } from 'lucide-react';
+import { Lock, Timer, Info, Trophy, AlertTriangle, Wallet, ArrowLeft, Play, Globe, Calendar, Zap, Clock } from 'lucide-react';
 import { ToastContainer, toast } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
+import MatchTimer from './components/MatchTimer';
+import MatchDetails from './components/MatchDetails';
 
 const SOCKET_URL = 'http://localhost:3001';
 
-// Custom Modal Component
+// --- Main Components ---
+
+const MatchCard = ({ match, onJoin }) => {
+  return (
+    <div
+      onClick={() => onJoin(match.fixture.id)}
+      className="bg-gray-800 rounded-xl p-4 border border-gray-700 hover:bg-gray-750 hover:border-green-500/30 transition-all cursor-pointer group shadow-lg"
+    >
+      <div className="flex justify-between items-center mb-3 text-xs text-gray-400 font-mono tracking-wider">
+        <span className="flex items-center gap-1.5">
+            <Globe className="w-3 h-3" />
+            {match.league.name}
+        </span>
+        {['IN_PLAY', 'PAUSED', 'LIVE'].includes(match.fixture.status.short) ? (
+             <div className="text-sm font-bold text-green-400 bg-green-900/20 px-2 py-0.5 rounded border border-green-500/30">
+                 <MatchTimer match={match} flashTime={0} />
+             </div>
+        ) : (
+            <span className="px-2 py-0.5 rounded bg-gray-700/50 text-gray-300">
+                {match.fixture.status.short}
+            </span>
+        )}
+      </div>
+
+      <div className="flex justify-between items-center">
+        <div className="flex-1 text-right pr-4">
+            <h3 className="font-bold text-gray-200 group-hover:text-white truncate">{match.teams.home.name}</h3>
+        </div>
+
+        <div className="bg-gray-900 px-3 py-1.5 rounded-lg border border-gray-700 font-mono font-bold text-lg text-white group-hover:border-green-500/50 transition-colors">
+            {match.goals.home}-{match.goals.away}
+        </div>
+
+        <div className="flex-1 text-left pl-4">
+            <h3 className="font-bold text-gray-200 group-hover:text-white truncate">{match.teams.away.name}</h3>
+        </div>
+      </div>
+
+      <div className="mt-3 flex justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+        <span className="text-xs text-green-400 font-bold flex items-center gap-1">
+            <Zap className="w-3 h-3 fill-green-400" />
+            Flash Betting Available
+        </span>
+      </div>
+    </div>
+  );
+};
+
+// Bet Modal Component
 const BetModal = ({ isOpen, onClose, onConfirm, selection, odds, balance }) => {
   const [amount, setAmount] = useState('');
 
@@ -27,42 +77,52 @@ const BetModal = ({ isOpen, onClose, onConfirm, selection, odds, balance }) => {
   };
 
   return (
-    <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50">
-      <div className="bg-gray-800 p-6 rounded-xl border border-gray-700 w-full max-w-sm shadow-2xl transform transition-all scale-100">
-        <h3 className="text-xl font-bold text-white mb-4 flex items-center gap-2">
-          Place Bet: <span className={selection === 'YES' ? 'text-green-400' : 'text-red-400'}>{selection}</span>
-        </h3>
+    <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-50">
+      <div className="bg-gray-900 p-6 rounded-2xl border border-gray-700 w-full max-w-sm shadow-2xl transform transition-all scale-100 ring-1 ring-white/10">
+        <div className="flex justify-between items-center mb-6">
+            <h3 className="text-xl font-bold text-white flex items-center gap-2">
+                <Zap className="w-5 h-5 text-yellow-400 fill-current" />
+                Confirm Bet
+            </h3>
+            <div className="text-xs font-mono bg-gray-800 px-2 py-1 rounded text-gray-400">ID: #B3T-X9</div>
+        </div>
 
-        <div className="space-y-4">
-          <div className="flex justify-between text-sm text-gray-400">
-             <span>Odds:</span>
-             <span className="font-bold text-white">{odds.toFixed(2)}</span>
+        <div className="space-y-6">
+          <div className="flex justify-between items-center p-4 bg-gray-800/50 rounded-xl border border-gray-700">
+             <span className={`text-2xl font-black ${selection === 'YES' ? 'text-green-400' : 'text-red-400'}`}>{selection}</span>
+             <div className="text-right">
+                 <div className="text-xs text-gray-500 uppercase tracking-wide">Odds</div>
+                 <div className="text-3xl font-mono font-bold text-white">{odds.toFixed(2)}</div>
+             </div>
           </div>
 
           <div>
-            <label className="block text-sm text-gray-400 mb-1">Stake Amount (R$)</label>
-            <input
-              type="number"
-              value={amount}
-              onChange={(e) => setAmount(e.target.value)}
-              className="w-full bg-gray-900 border border-gray-600 rounded-lg p-3 text-white focus:ring-2 focus:ring-green-500 outline-none text-lg font-mono"
-              placeholder="0.00"
-              autoFocus
-            />
+            <label className="block text-sm text-gray-400 mb-2 font-medium">Stake Amount (R$)</label>
+            <div className="relative">
+                <span className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500 font-bold">R$</span>
+                <input
+                  type="number"
+                  value={amount}
+                  onChange={(e) => setAmount(e.target.value)}
+                  className="w-full bg-gray-950 border border-gray-700 rounded-xl p-4 pl-12 text-white focus:ring-2 focus:ring-green-500 outline-none text-2xl font-mono placeholder-gray-700"
+                  placeholder="0"
+                  autoFocus
+                />
+            </div>
           </div>
 
-          <div className="flex gap-3 mt-6">
+          <div className="grid grid-cols-2 gap-3 pt-2">
             <button
               onClick={onClose}
-              className="flex-1 py-3 rounded-lg bg-gray-700 hover:bg-gray-600 text-gray-200 font-medium transition-colors"
+              className="py-4 rounded-xl bg-gray-800 hover:bg-gray-700 text-gray-400 font-bold transition-colors"
             >
               Cancel
             </button>
             <button
               onClick={handleConfirm}
-              className="flex-1 py-3 rounded-lg bg-green-600 hover:bg-green-500 text-white font-bold transition-colors shadow-lg shadow-green-900/20"
+              className="py-4 rounded-xl bg-green-600 hover:bg-green-500 text-white font-black text-lg transition-colors shadow-lg shadow-green-900/40"
             >
-              Confirm Bet
+              PLACE BET
             </button>
           </div>
         </div>
@@ -73,31 +133,44 @@ const BetModal = ({ isOpen, onClose, onConfirm, selection, odds, balance }) => {
 
 function App() {
   const [socket, setSocket] = useState(null);
-  const [market, setMarket] = useState(null);
+  const [view, setView] = useState('list');
+  const [activeFixtureId, setActiveFixtureId] = useState(null);
+  const [activeTab, setActiveTab] = useState('LIVE');
+
+  // Data State
+  const [matchList, setMatchList] = useState([]);
+  const [matchInfo, setMatchInfo] = useState({ home: '', away: '', score: { home: 0, away: 0 } });
   const [events, setEvents] = useState([]);
-  const [matchInfo, setMatchInfo] = useState({
-    home: 'Home Team',
-    away: 'Away Team',
-    score: { home: 0, away: 0 },
-    time: '00:00'
-  });
+
+  // Flash State
+  const [flashTimer, setFlashTimer] = useState(0);
+  const [flashMarkets, setFlashMarkets] = useState({ current: null });
 
   // Wallet State
   const [balance, setBalance] = useState(1000.00);
 
   // Modal State
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const [currentBet, setCurrentBet] = useState(null); // { selection: 'YES', odds: 2.50 }
+  const [currentBet, setCurrentBet] = useState(null);
 
-  const eventsEndRef = useRef(null);
-
-  const scrollToBottom = () => {
-    eventsEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  };
-
+  // Initial Fetch of Match List
   useEffect(() => {
-    scrollToBottom();
-  }, [events]);
+    const fetchMatches = async () => {
+        try {
+            const res = await fetch('http://localhost:3001/matches');
+            const data = await res.json();
+            setMatchList(data);
+
+            const hasLive = data.some(m => ['IN_PLAY', 'PAUSED'].includes(m.fixture.status.short));
+            if (hasLive) setActiveTab('LIVE');
+            else setActiveTab('TODAY');
+
+        } catch (err) {
+            console.error("Failed to fetch matches:", err);
+        }
+    };
+    fetchMatches();
+  }, []);
 
   useEffect(() => {
     const newSocket = io(SOCKET_URL);
@@ -105,284 +178,182 @@ function App() {
 
     newSocket.on('connect', () => {
       console.log('Connected to backend');
-      setEvents(prev => [...prev, { type: 'system', message: 'Connected to live server' }]);
     });
 
-    // Market Events
-    newSocket.on('market_update', (newMarket) => setMarket(newMarket));
-    newSocket.on('market_created', (newMarket) => setMarket(newMarket));
-    newSocket.on('markets_update', (markets) => setMarket(markets.length > 0 ? markets[0] : null));
-    newSocket.on('markets_suspended', (markets) => setMarket(markets.length > 0 ? markets[0] : null));
-    newSocket.on('markets_unsuspended', (markets) => setMarket(markets.length > 0 ? markets[0] : null));
-    newSocket.on('odds_update', (markets) => setMarket(markets.length > 0 ? markets[0] : null));
-
-    newSocket.on('market_resolved', (resolvedMarket) => {
-      setMarket(null);
-      setEvents(prev => [...prev, {
-        type: 'resolution',
-        message: `Market Resolved: ${resolvedMarket.status} (Winner: ${resolvedMarket.status === 'WIN' ? 'YES' : 'NO'})`
-      }]);
-    });
-
-    newSocket.on('markets_resolved', (resolvedMarkets) => {
-        setMarket(null);
-        resolvedMarkets.forEach(m => {
-            setEvents(prev => [...prev, {
-                type: 'resolution',
-                message: `Market Resolved: ${m.status}`
-              }]);
-        });
+    // Flash Updates (High Frequency)
+    newSocket.on('flash_update', (data) => {
+        if (view === 'game') {
+            setFlashTimer(data.timer);
+            setFlashMarkets(data.markets);
+        }
     });
 
     // Betting Events
     newSocket.on('bet_accepted', (data) => {
-        // Update balance
         setBalance(prev => prev - data.amount);
-
-        // Show success toast
-        toast.success(
-            <div>
-                <span className="font-bold">Bet Confirmed!</span>
-                <br/>
-                <span className="text-sm">R$ {data.amount.toFixed(2)} on {data.selection} @ {data.odd.toFixed(2)}</span>
-            </div>,
-            {
-                position: "top-right",
-                autoClose: 5000,
-                hideProgressBar: false,
-                closeOnClick: true,
-                pauseOnHover: true,
-                draggable: true,
-                theme: "dark",
-            }
-        );
+        toast.success(`Bet Confirmed! R$ ${data.amount}`, { theme: "dark", autoClose: 2000 });
     });
 
     newSocket.on('bet_rejected', (data) => {
-        toast.error(`Bet Rejected: ${data.reason}`, {
-            position: "top-right",
-            autoClose: 5000,
-            theme: "dark",
-        });
+        toast.error(`Bet Rejected: ${data.reason}`, { theme: "dark" });
     });
 
-    // Sport Events
-    newSocket.on('sport_event', (event) => {
-      setMatchInfo(prev => ({
-        ...prev,
-        time: `${event.details.minute}:00`,
-      }));
-
-      if (event.type === 'goal') {
-        setMatchInfo(prev => {
-           const isHome = event.details.team === 'Home';
-           return {
-               ...prev,
-               score: {
-                   home: isHome ? prev.score.home + 1 : prev.score.home,
-                   away: !isHome ? prev.score.away + 1 : prev.score.away
-               }
-           }
-        });
-      }
-
-      setEvents(prev => [...prev, {
-        type: event.type,
-        message: `${event.type.toUpperCase().replace('_', ' ')} - ${event.details.minute}' ${event.details.team} (${event.details.player})`,
-        timestamp: new Date().toLocaleTimeString()
-      }]);
+    // Standard Match Update (Score)
+    newSocket.on('match_update', (match) => {
+        if (view === 'game') {
+            setMatchInfo({
+                home: match.teams.home.name,
+                away: match.teams.away.name,
+                score: match.goals,
+                fixture: match.fixture,
+                serverTimestamp: match.serverTimestamp // Pass timestamp for interpolation
+            });
+        }
     });
 
     return () => newSocket.close();
-  }, []);
+  }, []); // Run once on mount
 
-  const openBetModal = (selection, odds) => {
-      if (!market || market.status !== 'OPEN') return;
-      setCurrentBet({ selection, odds });
+  // Handle Game Room Join/Leave
+  useEffect(() => {
+      if (!socket) return;
+
+      if (view === 'game' && activeFixtureId) {
+          // Re-emit join_game if socket reconnected or view changed
+          // This ensures we are in the room even if socket was reset (though we use single socket now)
+          socket.emit('join_game', activeFixtureId);
+      }
+  }, [view, activeFixtureId, socket]);
+
+  // Handlers
+  const handleJoinGame = (fixtureId) => {
+      if (!socket) return;
+      const match = matchList.find(m => m.fixture.id === fixtureId);
+      if (match) {
+          setMatchInfo({
+              home: match.teams.home.name,
+              away: match.teams.away.name,
+              score: match.goals,
+              fixture: match.fixture
+          });
+          setActiveFixtureId(fixtureId);
+          setEvents(match.events || []); // Initialize with historical/debug events
+          setFlashMarkets({ current: null });
+
+          socket.emit('join_game', fixtureId);
+          setView('game');
+      }
+  };
+
+  const handleLeaveGame = () => {
+      if (!socket) return;
+      socket.emit('leave_game', activeFixtureId);
+      setActiveFixtureId(null);
+      setView('list');
+  };
+
+  const openBetModal = (marketId, selection, odds) => {
+      setCurrentBet({ marketId, selection, odds });
       setIsModalOpen(true);
   };
 
   const handleConfirmBet = (amount) => {
       if (!socket || !currentBet) return;
-
       socket.emit('place_bet', {
-          marketId: market.id,
+          marketId: currentBet.marketId,
           selection: currentBet.selection,
           odd: currentBet.odds,
           amount: amount
       });
-
       setIsModalOpen(false);
       setCurrentBet(null);
   };
 
-  const getEventIcon = (type) => {
-    switch(type) {
-      case 'goal': return <Trophy className="w-4 h-4 text-yellow-500" />;
-      case 'red_card': return <div className="w-3 h-4 bg-red-600 rounded-sm" />;
-      case 'yellow_card': return <div className="w-3 h-4 bg-yellow-400 rounded-sm" />;
-      case 'danger': return <AlertTriangle className="w-4 h-4 text-orange-500" />;
-      case 'safe': return <Info className="w-4 h-4 text-blue-400" />;
-      case 'resolution': return <Info className="w-4 h-4 text-green-400" />;
-      default: return <div className="w-2 h-2 bg-gray-400 rounded-full" />;
-    }
+  // Helper for Tabs
+  const getMatchCategory = (match) => {
+    const status = match.fixture.status.short;
+    if (['IN_PLAY', 'PAUSED', 'LIVE'].includes(status)) return 'LIVE';
+
+    const matchDate = new Date(match.fixture.date).toDateString();
+    const today = new Date().toDateString();
+
+    if (matchDate === today) return 'TODAY';
+    return 'UPCOMING';
+  };
+
+  const counts = {
+      LIVE: matchList.filter(m => getMatchCategory(m) === 'LIVE').length,
+      TODAY: matchList.filter(m => getMatchCategory(m) === 'TODAY').length,
+      UPCOMING: matchList.filter(m => getMatchCategory(m) === 'UPCOMING').length,
   };
 
   return (
-    <div className="min-h-screen bg-gray-900 text-white font-sans">
-      <ToastContainer />
+    <div className="min-h-screen bg-gray-950 text-white font-sans selection:bg-green-500 selection:text-black">
+      <ToastContainer position="bottom-right" />
 
-      {/* Bet Modal */}
       <BetModal
         isOpen={isModalOpen}
         onClose={() => setIsModalOpen(false)}
         onConfirm={handleConfirmBet}
         selection={currentBet?.selection}
-        odds={currentBet?.odds}
+        odds={currentBet?.odds || 0}
         balance={balance}
       />
 
       {/* Header */}
-      <header className="bg-gray-800 border-b border-gray-700 p-4 shadow-lg sticky top-0 z-40">
+      <header className="bg-gray-900 border-b border-gray-800 p-4 shadow-xl sticky top-0 z-40 backdrop-blur-md bg-opacity-80">
         <div className="container mx-auto flex items-center justify-between">
-            <h1 className="text-xl font-bold text-green-400 flex items-center gap-2">
-                <Timer /> FlashBets Admin Dashboard
+            <h1 className="text-2xl font-black italic tracking-tighter text-transparent bg-clip-text bg-gradient-to-r from-green-400 to-emerald-600 flex items-center gap-2 cursor-pointer" onClick={handleLeaveGame}>
+                <Zap className="text-green-400 fill-current" /> FLASHBETS
             </h1>
 
-            <div className="flex items-center gap-4">
-                <div className="bg-gray-900 px-4 py-2 rounded-lg border border-gray-700 flex items-center gap-2 shadow-inner">
-                    <Wallet className="w-5 h-5 text-yellow-500" />
-                    <span className="font-mono font-bold text-lg text-yellow-400">
-                        R$ {balance.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
-                    </span>
-                </div>
-                <div className="text-xs text-gray-500 hidden md:block">
-                    {socket?.connected ? '🟢 Online' : '🔴 Offline'}
-                </div>
+            <div className="bg-gray-800 px-4 py-1.5 rounded-full border border-gray-700 flex items-center gap-3">
+                <Wallet className="w-4 h-4 text-emerald-400" />
+                <span className="font-mono font-bold text-emerald-300">
+                    R$ {balance.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                </span>
             </div>
         </div>
       </header>
 
-      <main className="container mx-auto p-4 grid grid-cols-1 md:grid-cols-3 gap-6 mt-4">
+      <main className="container mx-auto p-4 mt-2">
 
-        {/* Left Column: Match Info & Market */}
-        <div className="md:col-span-2 space-y-6">
+        {view === 'list' ? (
+            // LIST VIEW
+            <div className="space-y-6">
+                 {/* Tabs */}
+                 <div className="flex gap-4 border-b border-gray-800 pb-1">
+                    {['LIVE', 'TODAY', 'UPCOMING'].map(tab => (
+                        <button
+                            key={tab}
+                            onClick={() => setActiveTab(tab)}
+                            className={`pb-3 text-sm font-bold tracking-wide transition-colors relative ${activeTab === tab ? 'text-white' : 'text-gray-500 hover:text-gray-300'}`}
+                        >
+                            {tab}
+                            <span className="ml-2 text-xs opacity-60">({counts[tab]})</span>
+                            {activeTab === tab && <div className="absolute bottom-0 left-0 w-full h-0.5 bg-green-500 shadow-[0_0_10px_rgba(34,197,94,0.5)]"></div>}
+                        </button>
+                    ))}
+                 </div>
 
-            {/* Scoreboard */}
-            <div className="bg-gray-800 rounded-xl p-6 shadow-lg border border-gray-700 flex flex-col items-center relative overflow-hidden">
-                <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-transparent via-green-500 to-transparent opacity-50"></div>
-
-                <div className="text-gray-400 text-xs font-bold tracking-[0.2em] mb-4 uppercase">Premier League (Simulated)</div>
-
-                <div className="flex items-center justify-between w-full max-w-xl px-4">
-                    <div className="text-center w-1/3">
-                        <h2 className="text-xl md:text-2xl font-bold truncate">{matchInfo.home}</h2>
-                    </div>
-
-                    <div className="text-center w-1/3 flex flex-col items-center">
-                        <div className="bg-black/40 backdrop-blur-md rounded-lg py-3 px-8 border border-gray-700/50 shadow-xl">
-                            <span className="text-4xl md:text-5xl font-mono font-bold text-white tracking-widest">
-                                {matchInfo.score.home}-{matchInfo.score.away}
-                            </span>
-                        </div>
-                        <div className="mt-2 flex items-center gap-1 text-green-400 text-sm font-mono animate-pulse bg-green-900/20 px-2 py-0.5 rounded">
-                            <span className="w-2 h-2 bg-green-500 rounded-full"></span>
-                            {matchInfo.time}
-                        </div>
-                    </div>
-
-                    <div className="text-center w-1/3">
-                        <h2 className="text-xl md:text-2xl font-bold truncate">{matchInfo.away}</h2>
-                    </div>
-                </div>
+                 {/* Grid */}
+                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                    {matchList.filter(m => getMatchCategory(m) === activeTab).map(match => (
+                        <MatchCard key={match.fixture.id} match={match} onJoin={handleJoinGame} />
+                    ))}
+                 </div>
             </div>
-
-            {/* Market Card */}
-            <div className="bg-gray-800 rounded-xl p-6 shadow-lg border border-gray-700 relative overflow-hidden min-h-[320px] flex flex-col justify-center transition-all duration-300">
-
-                {!market ? (
-                    <div className="flex flex-col items-center justify-center text-gray-500 space-y-4 animate-pulse">
-                        <Timer className="w-16 h-16 opacity-50" />
-                        <span className="text-xl font-light">Waiting for market opportunity...</span>
-                    </div>
-                ) : (
-                    <>
-                         {/* Header */}
-                        <div className="flex justify-between items-start mb-8 border-b border-gray-700/50 pb-4">
-                            <div>
-                                <h3 className="text-2xl font-bold text-white mb-1">Next Goal (5 Mins)</h3>
-                                <p className="text-sm text-gray-400">Will a goal be scored in the next 5 minutes?</p>
-                            </div>
-                            <div className="flex flex-col items-end gap-1">
-                                <span className={`text-xs px-2 py-1 rounded font-bold uppercase tracking-wider ${market.status === 'OPEN' ? 'bg-green-500/10 text-green-400 border border-green-500/20' : 'bg-red-500/10 text-red-400 border border-red-500/20'}`}>
-                                    {market.status}
-                                </span>
-                                <span className="text-[10px] text-gray-600 font-mono">ID: {market.id}</span>
-                            </div>
-                        </div>
-
-                        {/* Buttons */}
-                        <div className="grid grid-cols-2 gap-6">
-                            <button
-                                onClick={() => openBetModal('YES', market.odds.yes)}
-                                disabled={market.status !== 'OPEN'}
-                                className="group relative bg-gradient-to-br from-green-600 to-green-700 hover:from-green-500 hover:to-green-600 disabled:opacity-50 disabled:grayscale text-white py-8 rounded-xl font-bold text-xl flex flex-col items-center transition-all active:scale-[0.98] shadow-lg shadow-green-900/20 border-t border-green-400/20"
-                            >
-                                <span className="text-sm text-green-200 mb-1 font-medium tracking-wide">YES (GOAL)</span>
-                                <span className="text-4xl font-mono tracking-tighter group-hover:scale-110 transition-transform duration-200">{market.odds.yes.toFixed(2)}</span>
-                            </button>
-
-                            <button
-                                onClick={() => openBetModal('NO', market.odds.no)}
-                                disabled={market.status !== 'OPEN'}
-                                className="group relative bg-gradient-to-br from-red-600 to-red-700 hover:from-red-500 hover:to-red-600 disabled:opacity-50 disabled:grayscale text-white py-8 rounded-xl font-bold text-xl flex flex-col items-center transition-all active:scale-[0.98] shadow-lg shadow-red-900/20 border-t border-red-400/20"
-                            >
-                                <span className="text-sm text-red-200 mb-1 font-medium tracking-wide">NO (GOAL)</span>
-                                <span className="text-4xl font-mono tracking-tighter group-hover:scale-110 transition-transform duration-200">{market.odds.no.toFixed(2)}</span>
-                            </button>
-                        </div>
-
-                        {/* Suspended Overlay */}
-                        {market.status === 'SUSPENDED' && (
-                            <div className="absolute inset-0 bg-gray-900/90 backdrop-blur-[2px] flex flex-col items-center justify-center z-10 animate-fadeIn">
-                                <Lock className="w-16 h-16 text-gray-500 mb-4" />
-                                <span className="text-2xl font-bold text-gray-300 tracking-wider">MARKET SUSPENDED</span>
-                                <span className="text-sm text-gray-500 mt-2">Odds are currently locked</span>
-                            </div>
-                        )}
-                    </>
-                )}
-            </div>
-
-        </div>
-
-        {/* Right Column: Event Feed */}
-        <div className="bg-gray-800 rounded-xl shadow-lg border border-gray-700 flex flex-col h-[600px] overflow-hidden">
-            <div className="p-4 border-b border-gray-700 bg-gray-800/50 backdrop-blur flex justify-between items-center">
-                <h3 className="font-bold text-gray-300 flex items-center gap-2 text-sm uppercase tracking-wide">
-                    <Info className="w-4 h-4 text-blue-400" /> Live Feed
-                </h3>
-                <span className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></span>
-            </div>
-            <div className="flex-1 overflow-y-auto p-4 space-y-3 custom-scrollbar">
-                {events.length === 0 && (
-                    <div className="flex flex-col items-center justify-center h-full text-gray-600 space-y-2">
-                        <Info className="w-8 h-8 opacity-20" />
-                        <p className="text-sm">Waiting for match start...</p>
-                    </div>
-                )}
-
-                {events.slice().reverse().map((ev, i) => (
-                    <div key={i} className="flex items-start gap-3 p-3 bg-gray-700/20 rounded-lg border border-gray-700/30 hover:bg-gray-700/40 transition-colors animate-slideIn">
-                        <div className="mt-0.5 p-1.5 bg-gray-800 rounded-md shadow-sm border border-gray-700/50">{getEventIcon(ev.type)}</div>
-                        <div>
-                            <p className="text-sm text-gray-200 font-medium leading-snug">{ev.message}</p>
-                            {ev.timestamp && <p className="text-[10px] text-gray-500 mt-1 font-mono">{ev.timestamp}</p>}
-                        </div>
-                    </div>
-                ))}
-            </div>
-        </div>
+        ) : (
+            // GAME VIEW (FLASH MODE)
+            <MatchDetails
+                matchInfo={matchInfo}
+                flashTimer={flashTimer}
+                flashMarkets={flashMarkets}
+                events={events}
+                onBack={handleLeaveGame}
+                onBet={openBetModal}
+            />
+        )}
 
       </main>
     </div>
