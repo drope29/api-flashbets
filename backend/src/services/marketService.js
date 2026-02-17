@@ -3,6 +3,9 @@ class MarketService {
     this.activeMarkets = [];
     this.marketIdCounter = 1;
     this.io = null;
+
+    // Start odds updater interval
+    setInterval(() => this.updateOdds(), 1000);
   }
 
   setIo(io) {
@@ -42,13 +45,19 @@ class MarketService {
   }
 
   createMarket() {
+    const durationSeconds = 300; // 5 minutes
+    const now = new Date();
+    const expiresAt = new Date(now.getTime() + durationSeconds * 1000);
+
     const market = {
       id: this.marketIdCounter++,
       type: 'next_goal_5min',
-      odds: 2.50,
+      odds: { yes: 2.50, no: 1.50 }, // Initial odds
+      initial_odds: { yes: 2.50, no: 1.50 },
       status: 'OPEN',
-      created_at: new Date(),
-      expires_at: new Date(Date.now() + 5 * 60 * 1000) // 5 minutes from now
+      created_at: now,
+      expires_at: expiresAt, // 5 minutes from now
+      duration_seconds: durationSeconds
     };
 
     this.activeMarkets.push(market);
@@ -61,7 +70,7 @@ class MarketService {
     // Set timeout for LOSS
     setTimeout(() => {
       this.resolveMarketAsLoss(market.id);
-    }, 5 * 60 * 1000);
+    }, durationSeconds * 1000);
   }
 
   suspendMarkets(reason) {
@@ -128,6 +137,44 @@ class MarketService {
         // Remove from active
         this.activeMarkets.splice(index, 1);
       }
+    }
+  }
+
+  updateOdds() {
+    if (this.activeMarkets.length === 0) return;
+
+    const now = new Date();
+    let changed = false;
+
+    this.activeMarkets.forEach(market => {
+      if (market.status === 'OPEN') {
+        const timeLeftMs = market.expires_at.getTime() - now.getTime();
+        const timeLeft = Math.max(0, timeLeftMs / 1000); // Seconds
+        const timeTotal = market.duration_seconds;
+
+        // Simple linear decay logic for MVP
+        // As time decreases, Probability(No Goal) increases -> Odds(No) decrease
+        // As time decreases, Probability(Goal) decreases -> Odds(Yes) increase
+
+        const progress = 1 - (timeLeft / timeTotal); // 0 (start) to 1 (end)
+
+        // Linear interpolation for simplicity:
+        // YES odds rise from 2.50 -> 10.00
+        // NO odds drop from 1.50 -> 1.01
+
+        const newYes = 2.50 + (progress * 7.5); // 2.50 -> 10.00
+        const newNo = 1.50 - (progress * 0.49); // 1.50 -> 1.01
+
+        market.odds.yes = parseFloat(newYes.toFixed(2));
+        market.odds.no = parseFloat(newNo.toFixed(2));
+
+        console.log(`[ODDS] Market ${market.id} Update: YES @ ${market.odds.yes} | NO @ ${market.odds.no} (Time left: ${Math.floor(timeLeft)}s)`);
+        changed = true;
+      }
+    });
+
+    if (changed && this.io) {
+      this.io.emit('odds_update', this.activeMarkets);
     }
   }
 }
