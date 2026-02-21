@@ -43,11 +43,32 @@ const MatchTimer = ({ match, flashTime }) => {
     }, []);
 
     const min = Math.floor(displayTime / 60);
-    const sec = displayTime % 60;
+    const sec = Math.floor(displayTime % 60);
+
+    // Safety Caps
+    if (match?.fixture?.status?.short === 'PAUSED' || match?.fixture?.status?.short === 'HT') return <span className="font-bold text-yellow-500">INTERVALO</span>;
+    if (match?.fixture?.status?.short === 'FINISHED' || match?.fixture?.status?.short === 'FT') return <span className="font-bold text-red-500">FIM DE JOGO</span>;
+
+    let formattedTime = `${min.toString().padStart(2, '0')}:${sec.toString().padStart(2, '0')}`;
+    let isStoppage = false;
+
+    // Stoppage Time Logic with Anti-Infinity Caps (Max +15)
+    // First Half Stoppage (45+)
+    if (min >= 45 && match?.fixture?.status?.period === '1H') {
+        const extra = Math.min(min - 45, 15);
+        formattedTime = `45+${extra}:${sec.toString().padStart(2, '0')}`;
+        isStoppage = true;
+    }
+    // Second Half Stoppage (90+)
+    else if (min >= 90) { // status period usually 2H here or not updated yet
+         const extra = Math.min(min - 90, 15);
+         formattedTime = `90+${extra}:${sec.toString().padStart(2, '0')}`;
+         isStoppage = true;
+    }
 
     return (
-        <span className="font-mono tabular-nums tracking-widest">
-            {min.toString().padStart(2, '0')}:{sec.toString().padStart(2, '0')}
+        <span className={`font-mono tabular-nums tracking-widest ${isStoppage ? 'text-red-500 animate-pulse font-black' : ''}`}>
+            {formattedTime}
         </span>
     );
 };
