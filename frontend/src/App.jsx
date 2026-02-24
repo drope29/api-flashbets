@@ -206,7 +206,8 @@ function App() {
                 away: match.teams.away.name,
                 score: match.goals,
                 fixture: match.fixture,
-                serverTimestamp: match.serverTimestamp // Pass timestamp for interpolation
+                serverTimestamp: match.serverTimestamp, // Pass timestamp for interpolation
+                markets: match.markets
             });
         }
     });
@@ -234,7 +235,8 @@ function App() {
               home: match.teams.home.name,
               away: match.teams.away.name,
               score: match.goals,
-              fixture: match.fixture
+              fixture: match.fixture,
+              markets: match.markets
           });
           setActiveFixtureId(fixtureId);
           setEvents(match.events || []); // Initialize with historical/debug events

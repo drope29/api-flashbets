@@ -1,53 +1,59 @@
 import { useState, useEffect } from 'react';
 
-const MatchTimer = ({ match, flashTime }) => {
-    const [displayTime, setDisplayTime] = useState(0);
+const MatchTimer = ({ match }) => {
+    // SINGLE SOURCE OF TRUTH: The API Minute (match.fixture.status.elapsed)
+    // We only count seconds locally to smooth out the display between updates.
 
+    const [seconds, setSeconds] = useState(0);
+    const minute = match?.fixture?.status?.elapsed || 0;
+    const status = match?.fixture?.status?.short;
+    const period = match?.fixture?.status?.period;
+
+    // Reset seconds whenever the official minute changes from the API
     useEffect(() => {
-        // Priority 1: Flash Timer (Synced with Backend Seconds)
-        if (flashTime > 0) {
-            setDisplayTime(flashTime);
-            return;
-        }
+        setSeconds(0);
+    }, [minute]);
 
-        // Priority 2: API Minute + Interpolation
-        if (match?.fixture?.status?.elapsed && match?.serverTimestamp) {
-            const now = Date.now();
-            const elapsedSinceUpdate = (now - match.serverTimestamp) / 1000;
-            const estimatedSeconds = (match.fixture.status.elapsed * 60) + elapsedSinceUpdate;
-            setDisplayTime(Math.floor(estimatedSeconds));
-            return;
-        }
-
-        // Priority 3: API Minute (Raw)
-        if (match?.fixture?.status?.elapsed) {
-            setDisplayTime(match.fixture.status.elapsed * 60);
-            return;
-        }
-
-        // Priority 4: Fallback Logic (Date Diff)
-        if (match?.fixture?.status?.short === 'IN_PLAY' && match?.fixture?.date) {
-            const start = new Date(match.fixture.date).getTime();
-            const now = Date.now();
-            const diffSec = Math.floor((now - start) / 1000);
-            setDisplayTime(Math.max(0, diffSec));
-        }
-    }, [match, flashTime]);
-
-    // Local Ticker for smoothness
+    // Simple ticker: Count up to 59 seconds, then hold until API updates the minute
     useEffect(() => {
+        if (status !== 'IN_PLAY' && status !== '1H' && status !== '2H') return;
+
         const interval = setInterval(() => {
-            setDisplayTime(prev => prev + 1);
+            setSeconds(prev => (prev < 59 ? prev + 1 : 59));
         }, 1000);
         return () => clearInterval(interval);
-    }, []);
+    }, [status, minute]); // Reset ticker on status or minute change
 
-    const min = Math.floor(displayTime / 60);
-    const sec = displayTime % 60;
+    // 1. Status Logic (Overrides Time)
+    if (status === 'PAUSED' || status === 'HT') return <span className="font-bold text-yellow-500">INTERVALO</span>;
+    if (['FINISHED', 'FT', 'AWARDED', 'INT'].includes(status)) return <span className="font-bold text-red-500">FIM DE JOGO</span>;
+
+    // 2. Formatting Logic
+    const displaySecs = seconds < 10 ? `0${seconds}` : seconds;
+    let isStoppage = false;
+    let formattedTime = '';
+
+    // Stoppage Time: 1H (45+)
+    if (minute >= 45 && period === '1H') {
+        const extra = minute - 45;
+        formattedTime = `45+${extra}:${displaySecs}`;
+        isStoppage = true;
+    }
+    // Stoppage Time: 2H (90+)
+    else if (minute >= 90) {
+        const extra = minute - 90;
+        formattedTime = `90+${extra}:${displaySecs}`;
+        isStoppage = true;
+    }
+    // Standard Time
+    else {
+        const displayMinute = minute < 10 ? `0${minute}` : minute;
+        formattedTime = `${displayMinute}:${displaySecs}`;
+    }
 
     return (
-        <span className="font-mono tabular-nums tracking-widest">
-            {min.toString().padStart(2, '0')}:{sec.toString().padStart(2, '0')}
+        <span className={`font-mono tabular-nums tracking-widest ${isStoppage ? 'text-red-500 animate-pulse font-black' : ''}`}>
+            {formattedTime}
         </span>
     );
 };
