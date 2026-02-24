@@ -182,10 +182,8 @@ function App() {
 
     // Flash Updates (High Frequency)
     newSocket.on('flash_update', (data) => {
-        if (view === 'game') {
-            setFlashTimer(data.timer);
-            setFlashMarkets(data.markets);
-        }
+        setFlashTimer(data.timer);
+        setFlashMarkets(data.markets);
     });
 
     // Betting Events
@@ -200,16 +198,28 @@ function App() {
 
     // Standard Match Update (Score)
     newSocket.on('match_update', (match) => {
-        if (view === 'game') {
-            setMatchInfo({
-                home: match.teams.home.name,
-                away: match.teams.away.name,
-                score: match.goals,
-                fixture: match.fixture,
-                serverTimestamp: match.serverTimestamp, // Pass timestamp for interpolation
-                markets: match.markets
+        setMatchInfo({
+            home: match.teams.home.name,
+            away: match.teams.away.name,
+            score: match.goals,
+            fixture: match.fixture,
+            serverTimestamp: match.serverTimestamp, // Pass timestamp for interpolation
+            markets: match.markets
+        });
+    });
+
+    // Global Matches Update (for List View)
+    newSocket.on('matches_update', (updatedMatches) => {
+        setMatchList(prevList => {
+            // Create a map for faster lookup
+            const listMap = new Map(prevList.map(m => [m.fixture.id, m]));
+
+            updatedMatches.forEach(updatedMatch => {
+                listMap.set(updatedMatch.fixture.id, updatedMatch);
             });
-        }
+
+            return Array.from(listMap.values());
+        });
     });
 
     return () => newSocket.close();
