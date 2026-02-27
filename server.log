@@ -1,0 +1,38 @@
+[DEBUG] Debug Match Initialized
+[API] Fetching LIVE matches from API-Football...
+[API ERROR] No API_SPORTS_KEY found. Cannot fetch real data.
+[API] Updated cache with 1 matches.
+Server running on port 3001
+[FLASH] Starting Flash Markets for Game 999999
+New client connected: 1wdG9BihRruAM_mPAAAC
+Client 1wdG9BihRruAM_mPAAAC joined game 999999
+[MONITOR] Debug fixture 999999 is handled by global heartbeat.
+Client 1wdG9BihRruAM_mPAAAC joined game 999999
+[MONITOR] Debug fixture 999999 is handled by global heartbeat.
+
+==================================
+🚨 NOVA APOSTA RECEBIDA NO SERVIDOR!
+Dados: {
+  id: 'st9ifh',
+  matchId: 999999,
+  marketId: 'f1_999999_85',
+  windowEnd: 86,
+  initialScore: '2-2',
+  type: 'flash_1',
+  option: 'YES',
+  amount: 20,
+  odd: 3.5,
+  status: 'PENDING'
+}
+User: user_1 Balance: 1000
+==================================
+
+[BET] New Bet Placed: 51e80374-dc74-467f-a378-ab4b0f0ff9f2 on Match 999999 (flash_1 - YES) by user_1
+[BET SUCCESS] Bet placed. New Balance: 980
+Client disconnected: 1wdG9BihRruAM_mPAAAC
+[API] Fetching LIVE matches from API-Football...
+[API ERROR] No API_SPORTS_KEY found. Cannot fetch real data.
+[API] Updated cache with 1 matches.
+[API] Fetching LIVE matches from API-Football...
+[API ERROR] No API_SPORTS_KEY found. Cannot fetch real data.
+[API] Updated cache with 1 matches.

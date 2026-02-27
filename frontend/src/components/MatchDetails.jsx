@@ -1,7 +1,8 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { ArrowLeft, Clock, Timer, Trophy, Info, Lock, Zap, ChevronDown, ChevronUp, AlertTriangle } from 'lucide-react';
 import { toast } from 'react-toastify';
 import MatchTimer from './MatchTimer';
+import BetAmountPanel from './BetAmountPanel';
 
 // Compact Odds Button (Professional Style)
 const FlashOddsButton = ({ title, odds, onClick, disabled, className = '' }) => {
@@ -70,8 +71,58 @@ const Accordion = ({ title, isOpen, onToggle, children }) => {
     );
 };
 
-const MarketGroup = ({ market, onBet, isFinished }) => {
+// Modified MarketGroup to support Direct Bet and passing socket
+const MarketGroup = ({ market, onBet, isFinished, match, socket, setBalance, placedBets, setPlacedBets, betAmount }) => {
     const isLocked = isFinished || market.status !== 'OPEN';
+
+    // DIRECT BET HANDLER (DEBUGGING MVP)
+    const handleBet = (option, odd) => {
+        if (!socket) {
+            console.error('[FRONTEND] Socket not available!');
+            return;
+        }
+
+        if (placedBets.includes(market.id)) {
+            toast.warn("Você já tem uma aposta rolando neste mercado!");
+            return;
+        }
+
+        if (betAmount <= 0) {
+            toast.warn("O valor da aposta deve ser maior que zero!");
+            return;
+        }
+
+        console.log(`[FRONTEND] Cliquei em ${option} com odd ${odd}, valor ${betAmount}`);
+
+        // 1. Optimistic Balance Update - REMOVED for Passive Client
+        // Balance will update only when server confirms via 'bet_accepted'
+
+        // 2. Lock Market
+        setPlacedBets(prev => [...prev, market.id]);
+
+        // 3. Construct Bet Object
+        const betData = {
+            id: Math.random().toString(36).substring(7),
+            matchId: match.fixture.id, // Using correct path to ID
+            marketId: market.id,
+            windowEnd: market.windowEnd,
+            initialScore: `${match.score.home}-${match.score.away}`,
+            type: market.type,
+            option: option,
+            amount: betAmount,
+            odd: odd,
+            status: 'PENDING'
+        };
+
+        // 4. Emit
+        socket.emit('place_bet', betData);
+        console.log('[FRONTEND] Aposta enviada para o servidor:', betData);
+        toast.info(`Sending bet: ${option} @ ${odd}`);
+    };
+
+    const getButtonText = (text) => {
+        return placedBets.includes(market.id) ? 'Aposta Registrada' : text;
+    }
 
     // --- 1X2 Layout ---
     if (market.type === '1x2' || market.type === '1x2_period') {
@@ -88,10 +139,11 @@ const MarketGroup = ({ market, onBet, isFinished }) => {
                     {['home', 'draw', 'away'].map((opt, i) => (
                         <FlashOddsButton
                             key={opt}
-                            title={market.options ? market.options[i] : opt}
+                            title={getButtonText(market.options ? market.options[i] : opt)}
                             odds={market.odds[opt]}
-                            onClick={() => onBet(market.id, market.options ? market.options[i] : opt, market.odds[opt])}
-                            disabled={isLocked}
+                            onClick={() => handleBet(market.options ? market.options[i] : opt, market.odds[opt])}
+                            disabled={isLocked || placedBets.includes(market.id)}
+                            className={placedBets.includes(market.id) ? 'bg-gray-600 cursor-not-allowed text-gray-400' : ''}
                         />
                     ))}
                 </div>
@@ -123,8 +175,20 @@ const MarketGroup = ({ market, onBet, isFinished }) => {
                 <div className="grid grid-cols-2 gap-px bg-gray-700 rounded overflow-hidden border border-gray-700">
                     <div className="bg-gray-900 p-2 text-center text-[10px] text-gray-500 font-bold uppercase">Mais</div>
                     <div className="bg-gray-900 p-2 text-center text-[10px] text-gray-500 font-bold uppercase">Menos</div>
-                    <FlashOddsButton title="Mais" odds={market.odds.over} onClick={() => onBet(market.id, 'Over', market.odds.over)} disabled={isLocked} className="!rounded-none !border-0" />
-                    <FlashOddsButton title="Menos" odds={market.odds.under} onClick={() => onBet(market.id, 'Under', market.odds.under)} disabled={isLocked} className="!rounded-none !border-0" />
+                    <FlashOddsButton
+                        title={getButtonText("Mais")}
+                        odds={market.odds.over}
+                        onClick={() => handleBet('Over', market.odds.over)}
+                        disabled={isLocked || placedBets.includes(market.id)}
+                        className={`!rounded-none !border-0 ${placedBets.includes(market.id) ? '!bg-gray-600 !cursor-not-allowed text-gray-400' : ''}`}
+                    />
+                    <FlashOddsButton
+                        title={getButtonText("Menos")}
+                        odds={market.odds.under}
+                        onClick={() => handleBet('Under', market.odds.under)}
+                        disabled={isLocked || placedBets.includes(market.id)}
+                        className={`!rounded-none !border-0 ${placedBets.includes(market.id) ? '!bg-gray-600 !cursor-not-allowed text-gray-400' : ''}`}
+                    />
                 </div>
                 {/* Progress Bar */}
                 {market.progress >= 0 && (
@@ -152,8 +216,20 @@ const MarketGroup = ({ market, onBet, isFinished }) => {
             </div>
 
             <div className="grid grid-cols-2 gap-2">
-                <FlashOddsButton title="SIM" odds={market.odds.yes} onClick={() => onBet(market.id, 'YES', market.odds.yes)} disabled={isLocked} />
-                <FlashOddsButton title="NÃO" odds={market.odds.no} onClick={() => onBet(market.id, 'NO', market.odds.no)} disabled={isLocked} />
+                <FlashOddsButton
+                    title={getButtonText("SIM")}
+                    odds={market.odds.yes}
+                    onClick={() => handleBet('YES', market.odds.yes)}
+                    disabled={isLocked || placedBets.includes(market.id)}
+                    className={placedBets.includes(market.id) ? 'bg-gray-600 cursor-not-allowed text-gray-400' : ''}
+                />
+                <FlashOddsButton
+                    title={getButtonText("NÃO")}
+                    odds={market.odds.no}
+                    onClick={() => handleBet('NO', market.odds.no)}
+                    disabled={isLocked || placedBets.includes(market.id)}
+                    className={placedBets.includes(market.id) ? 'bg-gray-600 cursor-not-allowed text-gray-400' : ''}
+                />
             </div>
 
             {/* Progress Bar */}
@@ -171,9 +247,12 @@ const MarketGroup = ({ market, onBet, isFinished }) => {
     );
 };
 
-const MatchDetails = ({ matchInfo, flashTimer, events, onBack, onBet }) => {
+const MatchDetails = ({ matchInfo, flashTimer, events, onBack, onBet, socket, balance, setBalance }) => {
     const [isFinished, setIsFinished] = useState(false);
     const [openCategories, setOpenCategories] = useState({});
+    const [placedBets, setPlacedBets] = useState([]);
+    const [betAmount, setBetAmount] = useState(10);
+    const hasRedirected = useRef(false);
 
     // Initialize Accordion State (Open first 2 categories)
     useEffect(() => {
@@ -191,12 +270,15 @@ const MatchDetails = ({ matchInfo, flashTimer, events, onBack, onBet }) => {
         setOpenCategories(prev => ({ ...prev, [cat]: !prev[cat] }));
     };
 
-    // Lifecycle Monitor
+    // Lifecycle Monitor & Loop Prevention
     useEffect(() => {
         if (!matchInfo?.fixture?.status?.short) return;
 
         const status = matchInfo.fixture.status.short;
-        if (['FINISHED', 'AWARDED', 'FT'].includes(status)) {
+
+        // Loop prevention: check if already redirected
+        if (['FINISHED', 'AWARDED', 'FT'].includes(status) && !hasRedirected.current) {
+            hasRedirected.current = true; // Set flag immediately
             setIsFinished(true);
             toast.warn("Partida Encerrada! Retornando ao menu...", { autoClose: 2000 });
 
@@ -238,6 +320,13 @@ const MatchDetails = ({ matchInfo, flashTimer, events, onBack, onBet }) => {
                 </div>
              </div>
 
+             {/* Bet Amount Panel */}
+             <BetAmountPanel
+                 balance={balance}
+                 currentAmount={betAmount}
+                 setAmount={setBetAmount}
+             />
+
              {/* Markets Accordion */}
              {matchInfo.markets && typeof matchInfo.markets === 'object' && !Array.isArray(matchInfo.markets) ? (
                  <div className="space-y-2">
@@ -255,6 +344,12 @@ const MatchDetails = ({ matchInfo, flashTimer, events, onBack, onBet }) => {
                                         market={market}
                                         onBet={onBet}
                                         isFinished={isFinished}
+                                        match={matchInfo}
+                                        socket={socket}
+                                        setBalance={setBalance}
+                                        placedBets={placedBets}
+                                        setPlacedBets={setPlacedBets}
+                                        betAmount={betAmount}
                                      />
                                  ))}
                              </div>

@@ -11,11 +11,12 @@ class RealDataService {
     this.activeMonitors = new Map(); // fixtureId -> intervalId
     this.io = null;
     this.flashService = null;
+    this.betService = null;
 
-    // Start passive update interval (30 seconds for High Frequency)
-    setInterval(() => this.updateLiveMatches(), 30 * 1000);
+    // Start passive update interval (60 seconds for API-Football Quota)
+    setInterval(() => this.updateLiveMatches(), 60 * 1000);
 
-    // Start Global Heartbeat (1s) - Simulates time and updates markets for ALL live games
+    // Start Global Heartbeat (1s) - Increments seconds locally for smooth UI
     if (DEBUG_MODE) {
         this.initDebugMatch();
     }
@@ -34,13 +35,17 @@ class RealDataService {
       this.flashService = service;
   }
 
+  setBetService(service) {
+      this.betService = service;
+  }
+
   initDebugMatch() {
       const now = Date.now();
       debugMatchCache = {
           fixture: {
               id: 999999,
               date: new Date().toISOString(),
-              status: { short: 'IN_PLAY', elapsed: 0 }
+              status: { short: 'IN_PLAY', elapsed: 0, second: 0, period: '1H' }
           },
           league: { name: 'Debug League', logo: '' },
           teams: {
@@ -48,7 +53,7 @@ class RealDataService {
               away: { name: '🐛 BUG HUNTERS', logo: '' }
           },
           goals: { home: 2, away: 2 },
-          events: [], // Can add events later if needed
+          events: [],
           serverTimestamp: now
       };
 
@@ -63,7 +68,6 @@ class RealDataService {
 
       // Ensure Debug Match is included if active
       if (DEBUG_MODE && debugMatchCache) {
-          // If not already in list (it might be added by updateLiveMatches if mocked properly, but let's ensure)
           if (!liveMatches.find(m => m.fixture.id === 999999)) {
               liveMatches.push(debugMatchCache);
           }
@@ -73,40 +77,29 @@ class RealDataService {
 
       liveMatches.forEach(match => {
           // A. Simulate Time Progression
-          // For real matches, we only increment if we haven't had an API update in a while?
-          // Actually, we want smooth bars. So we rely on FlashService.
-          // BUT, we need to update the `match` object's elapsed time for new markets to be generated correctly.
-          // RealDataService `pollMatchDetails` updates it every 15s.
-          // We can just interpolate seconds here.
-
           if (match.fixture.id === 999999) {
               // Debug Match: Full simulation
-              // Cycle: 0-45 (1H), 45-48 (1H Stoppage), 48-50 (HT), 50-95 (2H), 95-98 (2H Stoppage), 98-100 (FT) -> Loop
               const cycleDuration = 100 * 60; // 100 minutes total cycle for debug
               const cycleTime = Math.floor((now / 1000) % cycleDuration);
               const minute = Math.floor(cycleTime / 60);
+              const second = cycleTime % 60;
 
               let status = 'IN_PLAY';
               let period = '1H';
               let elapsed = minute;
 
               if (minute >= 45 && minute < 48) {
-                  // 1H Stoppage
                   period = '1H';
-                  elapsed = minute; // 45, 46, 47... will be treated as 45+
+                  elapsed = minute;
               } else if (minute >= 48 && minute < 50) {
-                  // Half Time
                   status = 'PAUSED';
                   period = 'HT';
                   elapsed = 45;
               } else if (minute >= 50 && minute < 95) {
-                  // 2nd Half
                   period = '2H';
-                  elapsed = minute - 5 + 45; // Start 2H at 45m (when real time is 50m) -> 45 + (50-50) = 45?
-                  // Let's just map 50->45, 95->90
+                  elapsed = minute - 5 + 45;
                   elapsed = 45 + (minute - 50);
               } else if (minute >= 95) {
-                  // 2H Stoppage & End
                   period = '2H';
                   elapsed = 90 + (minute - 95);
                   if (minute >= 98) {
@@ -117,52 +110,46 @@ class RealDataService {
 
               match.fixture.status.short = status;
               match.fixture.status.elapsed = elapsed;
+              match.fixture.status.second = second;
               match.fixture.status.period = period;
+              match.fixture.status.raw = period;
               match.serverTimestamp = now;
           } else {
-              // Real Match: Simple interpolation if needed, but FlashService uses internal timer initialized from elapsed.
-              // We don't strictly need to modify match.fixture.elapsed here unless we want to emit it.
-              // Let's trust FlashService's internal timer for markets.
+              // Real Match: Heartbeat increment
+              if (match.fixture.status.short === 'IN_PLAY') {
+                  if (typeof match.fixture.status.second !== 'number') match.fixture.status.second = 0;
+                  match.fixture.status.second++;
+                  if (match.fixture.status.second > 59) {
+                      match.fixture.status.second = 59;
+                  }
+              }
           }
 
-          // B. Trigger Flash Market Logic (The "Coração")
+          // B. Trigger Flash Market Logic
           if (this.flashService) {
-              // Ensure tracking is active
               this.flashService.handleMatchUpdate(match);
-
-              // Force Tick (Recalculate progress, close expired, rotate)
-              // We access the service directly to trigger the logic for this specific match
-              // The service maintains the `gameState` with high-res timer.
-              // Note: FlashService has its own internal 1s interval called `processTick`.
-              // If we add another call here, we double tick.
-              // The prompt says: "O setInterval de 1 segundo ... agora deve rodar um loop ... A cada 1 segundo ... Recalcule ...".
-              // So I should DISALBE FlashMarketService's internal loop and call it here?
-              // OR, I keep FlashService's loop and this loop just updates the match data feeding it.
-              // Given the strict prompt "RealDataService... A cada 1 segundo... Recalcule...",
-              // I will assume RealDataService orchestrates it.
-              // But FlashMarketService `processTick` iterates `activeGames`.
-              // So simply ensuring the game is *active* in FlashService allows FlashService's loop to handle it.
-              // BUT, to follow instructions precisely: "O setInterval de 1 segundo (que antes só afetava o Debug) agora deve rodar um loop..."
-              // I will leave FlashMarketService to handle the *mechanics* via its own loop or this one.
-              // Since FlashMarketService ALREADY has a loop `setInterval(() => this.processTick(), 1000)`,
-              // I don't need to duplicate the logic in RealDataService's loop.
-              // RealDataService's loop is vital for *Debug Match* time simulation.
-              // For Real Matches, time passes naturally.
-              // So, the most important thing here is that RealDataService updates the *Data Source* (debug match time)
-              // and FlashService consumes it.
-
-              // However, to sync back the generated markets to the `match` object (for new clients/list view), we do this:
               const gameState = this.flashService.activeGames.get(match.fixture.id);
               if (gameState && gameState.markets) {
                   match.markets = gameState.markets;
               }
           }
 
-          // C. Emit Socket Update
+          // C. Emit Socket Update to specific room
           if (this.io) {
               this.io.to(`game_${match.fixture.id}`).emit('match_update', match);
           }
       });
+
+      // D. Bet Settlement Engine (The "Judge")
+      // Call explicitly here to ensure active bets are checked against time progress
+      if (this.betService) {
+          this.betService.resolveBets(this.cachedMatches); // Use full cache to catch finished games too
+      }
+
+      // Emit Global Update for List View
+      if (this.io && liveMatches.length > 0) {
+          this.io.emit('matches_update', liveMatches);
+      }
   }
 
   getMatch(id) {
@@ -171,41 +158,88 @@ class RealDataService {
   }
 
   async updateLiveMatches() {
-    console.log('[API] Fetching matches (Strict Mode - 5 Day Window)...');
+    console.log('[API] Fetching LIVE matches from API-Football...');
+
+    // 1. THE JUDGE: Resolve bets BEFORE updating/cleaning matches
+    // This ensures that if a match is about to disappear or change status to finished, we settle pending bets first.
+    if (this.betService) {
+        this.betService.resolveBets(this.cachedMatches);
+    }
 
     try {
+      const apiKey = process.env.API_SPORTS_KEY;
       let matches = [];
-      const token = process.env.FOOTBALL_DATA_TOKEN;
 
-      if (token) {
-          const headers = { 'X-Auth-Token': token };
+      if (apiKey) {
+          const headers = {
+              'x-apisports-key': apiKey,
+              'x-apisports-host': 'v3.football.api-sports.io'
+          };
 
-          // Fetch matches for TODAY + 5 Days
-          const today = new Date();
-          const next5Days = new Date(today);
-          next5Days.setDate(today.getDate() + 5);
-
-          const dateFrom = today.toISOString().split('T')[0];
-          const dateTo = next5Days.toISOString().split('T')[0];
-
-          // Competitions filter (Major Leagues)
-          const competitions = 'PL,SA,BL1,CL,PD,FL1';
-
-          const response = await axios.get(`https://api.football-data.org/v4/matches?dateFrom=${dateFrom}&dateTo=${dateTo}&competitions=${competitions}`, { headers });
-          matches = response.data.matches || [];
+          const response = await axios.get('https://v3.football.api-sports.io/fixtures?live=all', { headers });
+          matches = response.data.response || [];
       } else {
-          console.error('[API ERROR] No FOOTBALL_DATA_TOKEN found. Cannot fetch real data.');
+          console.error('[API ERROR] No API_SPORTS_KEY found. Cannot fetch real data.');
+          // Keep existing cache if API fails? Or assume empty? For strictness, if no key, no real matches.
       }
 
-      // Step A: Filter out FINISHED matches
-      matches = matches.filter(m => !['FINISHED', 'AWARDED', 'FT'].includes(m.status));
+      // 2. THE UNDERTAKER: Mark missing matches as FINISHED instead of deleting immediately
+      // This handles cases where a match disappears from "live=all" because it finished.
+      this.cachedMatches.forEach(oldMatch => {
+          // Don't touch debug match
+          if (oldMatch.fixture.id === 999999) return;
 
-      // Adapt data
-      this.cachedMatches = matches.map(m => this.adaptMatchData(m));
+          const stillLive = matches.find(m => m.fixture.id === oldMatch.fixture.id);
+          if (!stillLive) {
+              console.log(`[CLEANUP] Match ${oldMatch.fixture.id} disappeared from API. Marking as FINISHED.`);
+              oldMatch.fixture.status.short = 'FINISHED';
+              oldMatch.fixture.status.raw = 'FT'; // Ensure robust finished check
+          }
+      });
+
+      // Adapt new data
+      const adaptedNewMatches = matches.map(m => {
+          const existing = this.cachedMatches.find(c => c.fixture.id === m.fixture.id);
+          return this.adaptMatchData(m, existing);
+      });
+
+      // Merge: Update existing, add new, keep "finished ghosts" if needed
+      // We rebuild cachedMatches carefully
+      let mergedMatches = [...adaptedNewMatches];
+
+      // Add back the "ghosts" (finished matches that were in cache but not in new list)
+      // Only if they are not already in adaptedNewMatches (which they aren't by definition of filter)
+      this.cachedMatches.forEach(oldMatch => {
+          if (oldMatch.fixture.id === 999999) return; // Debug handled later
+
+          const isRevised = adaptedNewMatches.find(m => m.fixture.id === oldMatch.fixture.id);
+          if (!isRevised && oldMatch.fixture.status.short === 'FINISHED') {
+              mergedMatches.push(oldMatch);
+          }
+      });
+
+      // 3. THE GARBAGE COLLECTOR: Remove finished matches ONLY if no pending bets
+      this.cachedMatches = mergedMatches.filter(match => {
+          if (match.fixture.id === 999999) return false; // Remove debug temporarily, re-add later
+
+          if (match.fixture.status.short !== 'FINISHED') return true;
+
+          // If finished, check for pending bets
+          let hasPending = false;
+          if (this.betService) {
+              hasPending = this.betService.hasPendingBetsForMatch(match.fixture.id);
+          }
+
+          if (hasPending) {
+              console.log(`[GC] Keeping finished match ${match.fixture.id} due to pending bets.`);
+              return true;
+          }
+
+          return false; // Remove if finished and no bets
+      });
 
       // Step B: Debug Injection
       if (DEBUG_MODE && debugMatchCache) {
-          // Ensure debug match is in the list for the frontend list view
           const idx = this.cachedMatches.findIndex(m => m.fixture.id === 999999);
           if (idx >= 0) this.cachedMatches[idx] = debugMatchCache;
           else this.cachedMatches.push(debugMatchCache);
@@ -225,7 +259,6 @@ class RealDataService {
   startMonitoring(fixtureId) {
     if (this.activeMonitors.has(fixtureId)) return;
 
-    // Handle Debug Match
     if (fixtureId == 999999 && DEBUG_MODE) {
         console.log(`[MONITOR] Debug fixture ${fixtureId} is handled by global heartbeat.`);
         return;
@@ -233,18 +266,16 @@ class RealDataService {
 
     console.log(`[MONITOR] Starting active monitoring for fixture ${fixtureId}`);
 
-    // Initial fetch
     this.pollMatchDetails(fixtureId);
 
     const intervalId = setInterval(() => {
         this.pollMatchDetails(fixtureId);
-    }, 15000); // Poll every 15s
+    }, 60000);
 
     this.activeMonitors.set(fixtureId, intervalId);
   }
 
   stopMonitoring(fixtureId) {
-    // Check if room is empty before stopping
     if (this.io) {
         const room = this.io.sockets.adapter.rooms.get(`game_${fixtureId}`);
         if (!room || room.size === 0) {
@@ -260,15 +291,24 @@ class RealDataService {
   }
 
   async pollMatchDetails(fixtureId) {
-    const token = process.env.FOOTBALL_DATA_TOKEN;
-    if (!token) return;
+    const apiKey = process.env.API_SPORTS_KEY;
+    if (!apiKey) return;
 
     try {
-        const headers = { 'X-Auth-Token': token };
-        const response = await axios.get(`https://api.football-data.org/v4/matches/${fixtureId}`, { headers });
-        const apiMatch = response.data;
+        const headers = {
+            'x-apisports-key': apiKey,
+            'x-apisports-host': 'v3.football.api-sports.io'
+        };
 
-        const adaptedMatch = this.adaptMatchData(apiMatch);
+        const response = await axios.get(`https://v3.football.api-sports.io/fixtures?id=${fixtureId}`, { headers });
+        const apiMatch = response.data.response && response.data.response[0];
+
+        if (!apiMatch) return;
+
+        const cachedIndex = this.cachedMatches.findIndex(m => m.fixture.id === parseInt(fixtureId));
+        const existing = cachedIndex !== -1 ? this.cachedMatches[cachedIndex] : null;
+
+        const adaptedMatch = this.adaptMatchData(apiMatch, existing);
 
         if (this.io) {
             this.io.to(`game_${fixtureId}`).emit('match_update', adaptedMatch);
@@ -277,8 +317,6 @@ class RealDataService {
                 this.flashService.handleMatchUpdate(adaptedMatch);
             }
 
-            // Events logic (simplified for strict mode - only emitting if score changed based on cache)
-            const cachedIndex = this.cachedMatches.findIndex(m => m.fixture.id === parseInt(fixtureId));
             if (cachedIndex !== -1) {
                 const cached = this.cachedMatches[cachedIndex];
                 if (adaptedMatch.goals.home > cached.goals.home) {
@@ -288,6 +326,8 @@ class RealDataService {
                     this.emitEvent(fixtureId, 'goal', 'Away', adaptedMatch.fixture.status.elapsed);
                 }
                 this.cachedMatches[cachedIndex] = adaptedMatch;
+            } else {
+                this.cachedMatches.push(adaptedMatch);
             }
         }
 
@@ -308,71 +348,54 @@ class RealDataService {
       }
   }
 
-  adaptMatchData(apiMatch) {
-      let elapsed = 0;
-      let period = '1H';
+  adaptMatchData(apiMatch, existingMatch = null) {
+      const rawStatus = apiMatch.fixture.status.short;
+      const elapsed = apiMatch.fixture.status.elapsed || 0;
+      const extra = apiMatch.fixture.status.extra || null;
 
-      if (['IN_PLAY', 'PAUSED'].includes(apiMatch.status)) {
-           elapsed = apiMatch.minute || 0;
-           // Heuristic for Period if not provided
-           if (apiMatch.status === 'PAUSED') period = 'HT';
-           else if (elapsed > 45) period = '2H'; // Fallback
-
-           // Normalization: If 2H starts at 1 instead of 46
-           // Some APIs reset minute to 0 at HT.
-           // If we detect period is 2H (e.g. from explicit field) and minute < 45, add 45.
-           // However, football-data usually gives absolute minutes.
-           // But prompt says: "algumas ligas enviam o minuto do 2º tempo a começar no 1"
-           // We need to rely on explicit period flag from API if available, or just check if it resets.
-           // apiMatch from football-data usually has `score.duration` or `period`.
-           // Let's assume if elapsed < 45 but we know it's 2H (how?), we add 45.
-           // Without explicit period from API, we can't know for sure if 5' is 1H or 2H reset.
-           // But if we track it... RealDataService is stateless per request.
-           // Let's implement the requested safety check:
-           // "if (match.period === 'SECOND_HALF' ... match.minute < 45 ... match.minute += 45"
-
-           // API V4 often uses `status` like `IN_PLAY`.
-           // Let's look at `apiMatch.score.duration` or similar.
-           // If not available, we can't reliably normalize without state.
-           // BUT, if the PROMPT says so, we implement logic assuming `period` might be populated correctly upstream or we infer it?
-           // Let's assume `apiMatch.period` exists or we try to find it.
-           // In standard football-data, it's often implied by elapsed > 45.
-           // If the API sends 1 for 2H, elapsed is 1. We'd think it's 1H.
-           // This is tricky without `period` field.
-           // Let's use `apiMatch.period` if it exists.
-
-           if (apiMatch.period === 'SECOND_HALF' || apiMatch.period === '2H') {
-               period = '2H';
-               if (elapsed < 45) elapsed += 45;
-           }
-
-      } else if (apiMatch.status === 'FINISHED') {
-           elapsed = 90;
-           period = 'FT';
+      let status = 'SCHEDULED';
+      if (['1H', '2H', 'ET', 'P', 'BT', 'INT', 'LIVE'].includes(rawStatus)) {
+          status = 'IN_PLAY';
+      } else if (rawStatus === 'HT') {
+          status = 'PAUSED';
+      } else if (['FT', 'AET', 'PEN', 'PST', 'CANC', 'ABD', 'AWD', 'WO'].includes(rawStatus)) {
+          status = 'FINISHED';
       }
 
-      const homeScore = apiMatch.score?.fullTime?.home ?? apiMatch.score?.current?.home ?? 0;
-      const awayScore = apiMatch.score?.fullTime?.away ?? apiMatch.score?.current?.away ?? 0;
+      let second = 0;
+      if (existingMatch) {
+          if (existingMatch.fixture.status.elapsed !== elapsed) {
+              second = 0;
+          } else {
+              second = existingMatch.fixture.status.second || 0;
+          }
+      }
 
       return {
           fixture: {
-              id: apiMatch.id,
-              date: apiMatch.utcDate,
+              id: apiMatch.fixture.id,
+              date: apiMatch.fixture.date,
               status: {
-                  short: apiMatch.status,
+                  short: status,
+                  raw: rawStatus,
+                  period: rawStatus,
                   elapsed: elapsed,
-                  period: period // Added period
+                  second: second,
+                  extra: extra
               }
           },
           league: {
-              name: apiMatch.competition ? apiMatch.competition.name : 'Unknown League',
-              logo: apiMatch.competition?.emblem || ''
+              name: apiMatch.league?.name || 'Unknown League',
+              logo: apiMatch.league?.logo || ''
           },
           teams: {
-              home: { name: apiMatch.homeTeam?.name || 'Home', logo: apiMatch.homeTeam?.crest || '' },
-              away: { name: apiMatch.awayTeam?.name || 'Away', logo: apiMatch.awayTeam?.crest || '' }
+              home: { name: apiMatch.teams.home.name || 'Home', logo: apiMatch.teams.home.logo || '' },
+              away: { name: apiMatch.teams.away.name || 'Away', logo: apiMatch.teams.away.logo || '' }
           },
-          goals: { home: homeScore, away: awayScore },
+          goals: {
+              home: apiMatch.goals.home ?? 0,
+              away: apiMatch.goals.away ?? 0
+          },
           serverTimestamp: Date.now()
       };
   }

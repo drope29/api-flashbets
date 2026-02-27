@@ -25,22 +25,21 @@ const PORT = process.env.PORT || 3001;
 const marketService = require('./services/marketService');
 const realDataService = require('./services/realDataService');
 const flashMarketService = require('./services/flashMarketService');
+const betService = require('./services/betService');
+
+// Mock Database (Single User for MVP)
+const usersDb = { "user_1": { balance: 1000.00 } };
 
 // Start services
 marketService.setIo(io);
 realDataService.setIo(io);
 flashMarketService.setIo(io);
+betService.setIo(io);
+betService.setUsersDb(usersDb); // Inject DB into BetService for settlements
 
 // Wire Services
-// When RealDataService updates a match (via active monitoring), tell FlashMarketService to sync
-// We need to inject a callback or event listener.
-// Since we don't have an event bus, we can modify RealDataService to accept a listener or just quick-wire here if instances exposed events.
-// For now, simpler to make RealDataService emit a local event or just call it directly if we had the instance.
-// But they are singletons. Let's make RealDataService emit to internal listeners?
-// Or better, let's pass FlashMarketService into RealDataService start method?
-// Actually, RealDataService emits 'match_update' via socket. FlashMarketService can't easily listen to socket out of box server-side.
-// Let's explicitly inject FlashService into RealDataService.
 realDataService.setFlashService(flashMarketService);
+realDataService.setBetService(betService);
 
 // Endpoints
 app.get('/', (req, res) => {
@@ -55,6 +54,10 @@ app.get('/matches', (req, res) => {
 io.on('connection', (socket) => {
   console.log('New client connected:', socket.id);
 
+  // Auto-login for MVP
+  const userId = "user_1";
+  socket.userId = userId;
+
   socket.on('disconnect', () => {
     console.log('Client disconnected:', socket.id);
   });
@@ -64,7 +67,6 @@ io.on('connection', (socket) => {
     socket.join(`game_${fixtureId}`);
     realDataService.startMonitoring(fixtureId);
 
-    // Also start Flash Markets if data is available
     const match = realDataService.getMatches().find(m => m.fixture.id === parseInt(fixtureId));
     if (match) {
         flashMarketService.startTracking(fixtureId, match);
@@ -75,18 +77,76 @@ io.on('connection', (socket) => {
     console.log(`Client ${socket.id} left game ${fixtureId}`);
     socket.leave(`game_${fixtureId}`);
     realDataService.stopMonitoring(fixtureId);
-    // flashMarketService.stopTracking(fixtureId); // Keep running for now or implement RefCount
   });
 
   socket.on('place_bet', (data) => {
-    // Route bet to appropriate service based on ID format
-    // Flash IDs look like "fixtureId_start_end" (e.g. "123_20_25")
-    // Legacy IDs are simple numbers
-    if (data.marketId && data.marketId.toString().includes('_')) {
-        flashMarketService.placeBet(data, socket.id);
-    } else {
-        marketService.placeBet(data, socket.id);
-    }
+      console.log('\n==================================');
+      console.log('🚨 NOVA APOSTA RECEBIDA NO SERVIDOR!');
+      console.log('Dados:', data);
+      console.log('User:', socket.userId, 'Balance:', usersDb[socket.userId].balance);
+      console.log('==================================\n');
+
+      const userId = socket.userId;
+      const user = usersDb[userId];
+
+      // 1. Validate Match & Data
+      let match = null;
+      if (data.matchId) {
+          match = realDataService.getMatch(data.matchId);
+      } else if (data.marketId) {
+          const fixtureId = data.marketId.split('_')[1];
+          match = realDataService.getMatch(fixtureId);
+          data.matchId = fixtureId;
+      }
+
+      if (!match) {
+          console.error(`[BET ERROR] Match not found.`);
+          io.to(socket.id).emit('bet_rejected', { reason: "Jogo não encontrado." });
+          return;
+      }
+
+      data.currentScore = `${match.goals.home}-${match.goals.away}`;
+
+      // 2. Validate Game Status & Time
+      const isLive = ['IN_PLAY'].includes(match.fixture.status.short);
+      const currentMinute = match.fixture.status.elapsed;
+
+      // Strict Time Check: Must be BEFORE window starts/ends (depending on market type logic)
+      // For MVP, simplistic check: minute < windowEnd
+      if (!isLive || currentMinute >= data.windowEnd) {
+           console.error(`[BET ERROR] Time expired. Game: ${currentMinute}', Window End: ${data.windowEnd}`);
+           io.to(socket.id).emit('bet_rejected', { reason: "Tempo esgotado ou jogo parado." });
+           return;
+      }
+
+      // 3. Validate Balance & Amount
+      if (data.amount <= 0) {
+           console.error(`[BET ERROR] Invalid amount: ${data.amount}`);
+           io.to(socket.id).emit('bet_rejected', { reason: "Valor inválido." });
+           return;
+      }
+
+      if (user.balance < data.amount) {
+           console.error(`[BET ERROR] Insufficient balance. Has: ${user.balance}, Needs: ${data.amount}`);
+           io.to(socket.id).emit('bet_rejected', { reason: "Saldo insuficiente." });
+           return;
+      }
+
+      // 4. Process Transaction
+      user.balance -= data.amount;
+
+      // 5. Register Bet
+      // Pass userId to BetService so it knows who to refund/pay later
+      data.userId = userId;
+      betService.placeBet(data, socket.id);
+
+      // 6. Success Response
+      io.to(socket.id).emit('bet_accepted', {
+          amount: data.amount,
+          newBalance: user.balance,
+          marketId: data.marketId
+      });
+      console.log(`[BET SUCCESS] Bet placed. New Balance: ${user.balance}`);
   });
 });
 

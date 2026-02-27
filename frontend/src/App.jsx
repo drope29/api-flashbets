@@ -56,81 +56,6 @@ const MatchCard = ({ match, onJoin }) => {
   );
 };
 
-// Bet Modal Component
-const BetModal = ({ isOpen, onClose, onConfirm, selection, odds, balance }) => {
-  const [amount, setAmount] = useState('');
-
-  if (!isOpen) return null;
-
-  const handleConfirm = () => {
-    const val = parseFloat(amount);
-    if (!val || isNaN(val) || val <= 0) {
-      toast.error("Please enter a valid amount!");
-      return;
-    }
-    if (val > balance) {
-      toast.error("Insufficient balance!");
-      return;
-    }
-    onConfirm(val);
-    setAmount('');
-  };
-
-  return (
-    <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-50">
-      <div className="bg-gray-900 p-6 rounded-2xl border border-gray-700 w-full max-w-sm shadow-2xl transform transition-all scale-100 ring-1 ring-white/10">
-        <div className="flex justify-between items-center mb-6">
-            <h3 className="text-xl font-bold text-white flex items-center gap-2">
-                <Zap className="w-5 h-5 text-yellow-400 fill-current" />
-                Confirm Bet
-            </h3>
-            <div className="text-xs font-mono bg-gray-800 px-2 py-1 rounded text-gray-400">ID: #B3T-X9</div>
-        </div>
-
-        <div className="space-y-6">
-          <div className="flex justify-between items-center p-4 bg-gray-800/50 rounded-xl border border-gray-700">
-             <span className={`text-2xl font-black ${selection === 'YES' ? 'text-green-400' : 'text-red-400'}`}>{selection}</span>
-             <div className="text-right">
-                 <div className="text-xs text-gray-500 uppercase tracking-wide">Odds</div>
-                 <div className="text-3xl font-mono font-bold text-white">{odds.toFixed(2)}</div>
-             </div>
-          </div>
-
-          <div>
-            <label className="block text-sm text-gray-400 mb-2 font-medium">Stake Amount (R$)</label>
-            <div className="relative">
-                <span className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500 font-bold">R$</span>
-                <input
-                  type="number"
-                  value={amount}
-                  onChange={(e) => setAmount(e.target.value)}
-                  className="w-full bg-gray-950 border border-gray-700 rounded-xl p-4 pl-12 text-white focus:ring-2 focus:ring-green-500 outline-none text-2xl font-mono placeholder-gray-700"
-                  placeholder="0"
-                  autoFocus
-                />
-            </div>
-          </div>
-
-          <div className="grid grid-cols-2 gap-3 pt-2">
-            <button
-              onClick={onClose}
-              className="py-4 rounded-xl bg-gray-800 hover:bg-gray-700 text-gray-400 font-bold transition-colors"
-            >
-              Cancel
-            </button>
-            <button
-              onClick={handleConfirm}
-              className="py-4 rounded-xl bg-green-600 hover:bg-green-500 text-white font-black text-lg transition-colors shadow-lg shadow-green-900/40"
-            >
-              PLACE BET
-            </button>
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-};
-
 function App() {
   const [socket, setSocket] = useState(null);
   const [view, setView] = useState('list');
@@ -148,10 +73,6 @@ function App() {
 
   // Wallet State
   const [balance, setBalance] = useState(1000.00);
-
-  // Modal State
-  const [isModalOpen, setIsModalOpen] = useState(false);
-  const [currentBet, setCurrentBet] = useState(null);
 
   // Initial Fetch of Match List
   useEffect(() => {
@@ -182,46 +103,65 @@ function App() {
 
     // Flash Updates (High Frequency)
     newSocket.on('flash_update', (data) => {
-        if (view === 'game') {
-            setFlashTimer(data.timer);
-            setFlashMarkets(data.markets);
-        }
+        setFlashTimer(data.timer);
+        setFlashMarkets(data.markets);
     });
 
     // Betting Events
     newSocket.on('bet_accepted', (data) => {
-        setBalance(prev => prev - data.amount);
+        setBalance(data.newBalance); // Sync Authoritative Balance
         toast.success(`Bet Confirmed! R$ ${data.amount}`, { theme: "dark", autoClose: 2000 });
     });
 
     newSocket.on('bet_rejected', (data) => {
         toast.error(`Bet Rejected: ${data.reason}`, { theme: "dark" });
+        // Optional: Re-fetch balance if sync needed
+    });
+
+    // Bet Resolution (Handle Balance Update Here)
+    newSocket.on('bet_resolved', (data) => {
+        if (data.newBalance !== undefined) {
+            setBalance(data.newBalance); // Sync Authoritative Balance
+        }
+
+        if (data.bet.status === 'WIN') {
+            toast.success(`💰 GANHOU! Recebeu R$ ${data.payout.toFixed(2)}`, { theme: "dark", autoClose: 5000 });
+        } else {
+            toast.info(`❌ PERDEU a aposta. (Sem lucro)`, { theme: "dark", autoClose: 3000 });
+        }
     });
 
     // Standard Match Update (Score)
     newSocket.on('match_update', (match) => {
-        if (view === 'game') {
-            setMatchInfo({
-                home: match.teams.home.name,
-                away: match.teams.away.name,
-                score: match.goals,
-                fixture: match.fixture,
-                serverTimestamp: match.serverTimestamp, // Pass timestamp for interpolation
-                markets: match.markets
+        setMatchInfo({
+            home: match.teams.home.name,
+            away: match.teams.away.name,
+            score: match.goals,
+            fixture: match.fixture,
+            serverTimestamp: match.serverTimestamp,
+            markets: match.markets
+        });
+    });
+
+    // Global Matches Update (for List View)
+    newSocket.on('matches_update', (updatedMatches) => {
+        setMatchList(prevList => {
+            const listMap = new Map(prevList.map(m => [m.fixture.id, m]));
+            updatedMatches.forEach(updatedMatch => {
+                listMap.set(updatedMatch.fixture.id, updatedMatch);
             });
-        }
+            return Array.from(listMap.values());
+        });
     });
 
     return () => newSocket.close();
-  }, []); // Run once on mount
+  }, []);
 
   // Handle Game Room Join/Leave
   useEffect(() => {
       if (!socket) return;
 
       if (view === 'game' && activeFixtureId) {
-          // Re-emit join_game if socket reconnected or view changed
-          // This ensures we are in the room even if socket was reset (though we use single socket now)
           socket.emit('join_game', activeFixtureId);
       }
   }, [view, activeFixtureId, socket]);
@@ -239,7 +179,7 @@ function App() {
               markets: match.markets
           });
           setActiveFixtureId(fixtureId);
-          setEvents(match.events || []); // Initialize with historical/debug events
+          setEvents(match.events || []);
           setFlashMarkets({ current: null });
 
           socket.emit('join_game', fixtureId);
@@ -252,23 +192,6 @@ function App() {
       socket.emit('leave_game', activeFixtureId);
       setActiveFixtureId(null);
       setView('list');
-  };
-
-  const openBetModal = (marketId, selection, odds) => {
-      setCurrentBet({ marketId, selection, odds });
-      setIsModalOpen(true);
-  };
-
-  const handleConfirmBet = (amount) => {
-      if (!socket || !currentBet) return;
-      socket.emit('place_bet', {
-          marketId: currentBet.marketId,
-          selection: currentBet.selection,
-          odd: currentBet.odds,
-          amount: amount
-      });
-      setIsModalOpen(false);
-      setCurrentBet(null);
   };
 
   // Helper for Tabs
@@ -292,15 +215,6 @@ function App() {
   return (
     <div className="min-h-screen bg-gray-950 text-white font-sans selection:bg-green-500 selection:text-black">
       <ToastContainer position="bottom-right" />
-
-      <BetModal
-        isOpen={isModalOpen}
-        onClose={() => setIsModalOpen(false)}
-        onConfirm={handleConfirmBet}
-        selection={currentBet?.selection}
-        odds={currentBet?.odds || 0}
-        balance={balance}
-      />
 
       {/* Header */}
       <header className="bg-gray-900 border-b border-gray-800 p-4 shadow-xl sticky top-0 z-40 backdrop-blur-md bg-opacity-80">
@@ -353,7 +267,10 @@ function App() {
                 flashMarkets={flashMarkets}
                 events={events}
                 onBack={handleLeaveGame}
-                onBet={openBetModal}
+                onBet={() => {}} // Ignored
+                socket={socket}
+                balance={balance}
+                setBalance={setBalance}
             />
         )}
 
